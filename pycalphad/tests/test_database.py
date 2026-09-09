@@ -961,6 +961,23 @@ def test_magnetic_diffusion_coefficients_resolve_per_species():
     assert model.alpha2_for('n') == 0.6  # species are matched case-insensitively
     assert model.alpha2_for('B') is None  # no bare ALPHA2 to fall back on
     assert DiffusionModel('NONE').alpha_for('FE') is None
+    # A bare ALPHA2 covers every interstitial the command does not name.
+    bare = Database.from_string(
+        DIFFUSION_COMMANDS_TDB.replace('ALPHA2&C=1.8', 'ALPHA2=1.8'), fmt='tdb'
+    ).phases['BCC_A2'].model_hints['diffusion']
+    assert bare.alpha2_for() == 1.8
+    assert bare.alpha2_for('C') == 1.8
+    assert bare.alpha2_for('N') == 0.6  # the named value still wins over the bare one
+
+
+def test_diffusion_commands_accept_the_names_the_other_commands_accept():
+    "Phase and species names take the characters of the PHASE and CONSTITUENT commands."
+    tdb_string = DIFFUSION_COMMANDS_TDB.replace('SIGMA', 'KSI-CARBIDE')
+    tdb_string = tdb_string.replace(' DIFFUSION DILUTE CEMENTITE : FE : C :',
+                                    ' DIFFUSION DILUTE CEMENTITE : FE : *,C :')
+    dbf = Database.from_string(tdb_string, fmt='tdb')
+    assert dbf.phases['KSI-CARBIDE'].model_hints['diffusion'] == DiffusionModel('NONE')
+    assert dbf.phases['CEMENTITE'].model_hints['diffusion'].constituents == (('FE',), ('*', 'C'))
 
 
 def test_diffusion_commands_roundtrip():

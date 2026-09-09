@@ -405,8 +405,11 @@ def _diffusion_grammar():
     dependent species in each sublattice, and ``MAGNETIC`` takes ``ALPHA`` and ``ALPHA2``
     coefficients, optionally per species as ``ALPHA2&C=1.8``.
     """
-    species_name = Word(alphanums + '_+-/')
-    phase_name = Word(alphanums + '_')
+    # The same characters the CONSTITUENT and PHASE commands accept, so a DIFFUSION command
+    # cannot fail on a species or a phase the rest of the file defines happily. ':' is left out
+    # of the phase name because it opens the constituent array of the DILUTE and SIMPLE forms.
+    species_name = Word(alphanums + '+-*/_.')
+    phase_name = Word(alphanums + '_-()/')
     coefficient = Group(
         Regex(r'ALPHA2?', re.IGNORECASE).set_parse_action(lambda t: t[0].upper())
         + Optional(Suppress('&') + species_name, default=None)
@@ -418,7 +421,8 @@ def _diffusion_grammar():
         Group(OneOrMore(coefficient))('coefficients') | Group(constituent_array)('constituents')
     )
 
-_DIFFUSION_GRAMMAR = None
+#: The grammar is the same for every file, so it is built once.
+_DIFFUSION_GRAMMAR = _diffusion_grammar()
 
 def _process_diffusion(db, diffusion_line):
     """Queue a DIFFUSION command for the phase it names.
@@ -427,9 +431,6 @@ def _process_diffusion(db, diffusion_line):
     parsed model is queued and attached to the phase's model_hints once every phase is known.
     A command that does not follow the DICTRA syntax is skipped with a warning.
     """
-    global _DIFFUSION_GRAMMAR
-    if _DIFFUSION_GRAMMAR is None:
-        _DIFFUSION_GRAMMAR = _diffusion_grammar()
     try:
         tokens = _DIFFUSION_GRAMMAR.parse_string(diffusion_line, parse_all=True)
     except ParseException as e:
